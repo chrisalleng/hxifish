@@ -56,6 +56,7 @@ local defaults = T{
       timeoutInput         =  { 1 };
       tracking             =  { 1 };
       refreshChime         = { false };
+      refreshChimeRodOnly  = { true };
       clrSession           = { false };
       choices              = 'Fishing\0All Crafting\0None\0\0';
    };

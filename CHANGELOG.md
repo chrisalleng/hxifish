@@ -20,6 +20,17 @@
 <h1>Completed Work</h1>
 <ul>
   <li>
+    1.7.3
+    <ul>
+      <li>
+          The rod requirement for the Pool Refresh Chime is now its own option, "Only with fishing rod equipped" (default on), nested under the chime setting.
+      </li>
+      <li>
+          Fixed a potential crash in the skill-up calculation when the ranged slot is empty.
+      </li>
+    </ul>
+  </li>
+  <li>
     1.7.2
     <ul>
       <li>

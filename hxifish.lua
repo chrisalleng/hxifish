@@ -26,7 +26,7 @@
 addon.author            = 'Espe (spkywt)';
 addon.name              = 'hxifish';
 addon.desc              = 'Tracker for fishing statistics.';
-addon.version           = '1.7.2';
+addon.version           = '1.7.3';
 
 -- Ashita Libs
 require 'common'
@@ -75,7 +75,7 @@ end
 ----------------------------------------------------------------------------------------------------
 local DEFAULT_FONT_HEIGHT = 13;
 local BASE_PANEL_HEIGHT   = 166;
-local BASE_OPTION_HEIGHT  = 200;
+local BASE_OPTION_HEIGHT  = 224;
 local BASE_WIDTH          = 236;
 
 local function GetTrackerLayout(lines)
@@ -132,9 +132,9 @@ local function CheckPoolRefresh()
    if (not config.options.refreshChime[1]) then return; end
    if (not PoolRefreshHours:contains(hourIndex % 24)) then return; end
 
-   -- Only chime if actually set up to fish. Checked last: this walks all equipment slots, and
-   -- reaching it means an hour boundary was crossed, so it runs once a Vana'diel hour at most.
-   if (not HasFishingRodEquipped()) then return; end
+   -- Checked last: this walks all equipment slots, and reaching it means an hour boundary was
+   -- crossed, so it runs once a Vana'diel hour at most.
+   if (config.options.refreshChimeRodOnly[1] and not HasFishingRodEquipped()) then return; end
 
    ashita.misc.play_sound(addon.path .. 'files/call21.wav');
 end
@@ -239,6 +239,13 @@ local function FishingTracker()
    if (refreshLabel ~= nil) then measure:append(refreshLabel .. ' ' .. refreshTime); end
    if (pauseMsg ~= nil) then measure:append(pauseMsg); end
    measure:extend(statLines);
+
+   -- The options rows are wider than anything else the window draws, so they are only measured
+   -- while that panel is open; the window widens to fit them and shrinks back on close. Leading
+   -- spaces stand in for the indent and checkbox that precede the label.
+   if (config.options.show) then
+      measure:append('     Only with fishing rod equipped (?)');
+   end
 
    local layout = GetTrackerLayout(measure);
 
@@ -373,6 +380,18 @@ local function FishingTracker()
             imgui.SameLine();
             imgui.TextDisabled('(?)');
             tool_tip(imgui, 'Plays a chime when the fishing pools restock');
+
+            -- Option >> Pool Refresh Chime >> Rod Only
+            imgui.Indent();
+            if (not config.options.refreshChime[1]) then imgui.BeginDisabled(); end
+            if (imgui.Checkbox('Only with fishing rod equipped', config.options.refreshChimeRodOnly)) then
+               settings.save();
+            end
+            if (not config.options.refreshChime[1]) then imgui.EndDisabled(); end
+            imgui.SameLine();
+            imgui.TextDisabled('(?)');
+            tool_tip(imgui, 'Only chime while a fishing rod is in your ranged slot');
+            imgui.Unindent();
 
             -- Option >> Clear Session
             imgui.NewLine();
@@ -629,7 +648,9 @@ ashita.events.register('text_in', 'text_in_cb', function(e) -- Unused: e.mode , 
 
          -- Penalty for using lu shang under 50 skill
          -- Lu Shang's Fishing Rod (17386)
-         if (GetEquipment().Range.Item.Id == 17386 and config.Fishing.skill < 50) then
+         local ranged = GetEquipment().Range;
+         if (ranged ~= nil and ranged.Item ~= nil
+             and ranged.Item.Id == 17386 and config.Fishing.skill < 50) then
             skillRoll = skillRoll + 20;
          end
 

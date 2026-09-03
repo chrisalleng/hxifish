@@ -1,6 +1,6 @@
 # hxifish
 FFXI Tracker for fishing statistics. Window automatically opens when casting your line.<br /><br />
-Current Version: 1.7.2<br />
+Current Version: 1.7.3<br />
 <a href="CHANGELOG.md">View Changelog</a><br /><br />
 
 This is a fork of <a href="https://github.com/spkywt/hxifish">spkywt/hxifish</a> by Espe (spkywt), adding fishing pool refresh tracking.
@@ -30,6 +30,11 @@ The `06:00` is the Vana'diel hour the pools restock at; the countdown in parenth
 **Show Options** has a **Pool Refresh Chime** checkbox (**off by default**). When enabled, the
 `<call21>` sound effect plays at each restock. It is played through Ashita's own sound player, so
 nothing is written to the chat log.
+
+A nested **Only with fishing rod equipped** checkbox (**on by default**) limits the chime to when
+you actually have a rod in your ranged slot. Rods are detected by weapon skill rather than an item
+id list, so all 20 of them are covered — bait and lures share that skill but are ammo-slot items,
+so they don't count.
 
 The sound lives in `files/call21.wav`. To use a different call, extract it from your own game
 files with the included decoder. The call jingles are `se0000NN.spw` in `<FFXI>/sound/win/se/se000`,
