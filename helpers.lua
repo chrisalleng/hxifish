@@ -108,6 +108,23 @@ function GetTimestamp()
 end
 
 ----------------------------------------------------------------------------------------------------
+-- func: HasFishingRodEquipped
+-- desc: Returns true when a fishing rod is in the ranged slot.
+--
+--       Rods are identified by their weapon skill rather than an item id list, so every rod is
+--       covered without maintaining one. Bait and lures share skill 48, but they are ammo-slot
+--       items, so looking only at the ranged slot keeps them out.
+----------------------------------------------------------------------------------------------------
+FishingSkillId = 48;
+
+function HasFishingRodEquipped()
+   local ranged = GetEquipment().Range;
+   if (ranged == nil or ranged.Resource == nil) then return false; end
+
+   return ranged.Resource.Skill == FishingSkillId;
+end
+
+----------------------------------------------------------------------------------------------------
 -- Vana'diel clock conversions. One Vana'diel hour is 144 real seconds, so the raw timestamp read
 -- from the client is already a real-life second count and can be used for the countdown directly.
 ----------------------------------------------------------------------------------------------------

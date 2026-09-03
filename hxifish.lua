@@ -26,7 +26,7 @@
 addon.author            = 'Espe (spkywt)';
 addon.name              = 'hxifish';
 addon.desc              = 'Tracker for fishing statistics.';
-addon.version           = '1.7.1';
+addon.version           = '1.7.2';
 
 -- Ashita Libs
 require 'common'
@@ -131,6 +131,10 @@ local function CheckPoolRefresh()
 
    if (not config.options.refreshChime[1]) then return; end
    if (not PoolRefreshHours:contains(hourIndex % 24)) then return; end
+
+   -- Only chime if actually set up to fish. Checked last: this walks all equipment slots, and
+   -- reaching it means an hour boundary was crossed, so it runs once a Vana'diel hour at most.
+   if (not HasFishingRodEquipped()) then return; end
 
    ashita.misc.play_sound(addon.path .. 'files/call21.wav');
 end

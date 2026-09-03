@@ -20,6 +20,14 @@
 <h1>Completed Work</h1>
 <ul>
   <li>
+    1.7.2
+    <ul>
+      <li>
+          Pool Refresh Chime now only sounds when a fishing rod is equipped in the ranged slot.
+      </li>
+    </ul>
+  </li>
+  <li>
     1.7.1
     <ul>
       <li>
