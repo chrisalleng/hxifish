@@ -99,16 +99,78 @@ end
 -- Helper functions borrowed from luashitacast
 ----------------------------------------------------------------------------------------------------
 function GetTimestamp()
-   local pVanaTime = ashita.memory.find('FFXiMain.dll', 0,
-                                      'B0015EC390518B4C24088D4424005068', 0,
-                                      0);
-   local pointer = ashita.memory.read_uint32(pVanaTime + 0x34);
-   local rawTime = ashita.memory.read_uint32(pointer + 0x0C) + 92514960;
+   local rawTime = GetVanaRawTime();
    local timestamp = {};
    timestamp.day = math.floor(rawTime / 3456);
    timestamp.hour = math.floor(rawTime / 144) % 24;
    timestamp.minute = math.floor((rawTime % 144) / 2.4);
    return timestamp;
+end
+
+----------------------------------------------------------------------------------------------------
+-- Vana'diel clock conversions. One Vana'diel hour is 144 real seconds, so the raw timestamp read
+-- from the client is already a real-life second count and can be used for the countdown directly.
+----------------------------------------------------------------------------------------------------
+VanaHourSeconds = 144;
+VanaDaySeconds  = 144 * 24;
+
+local pVanaTime = nil;
+
+----------------------------------------------------------------------------------------------------
+-- func: GetVanaRawTime
+-- desc: Returns the raw Vana'diel timestamp, in real-life seconds. (nil if it cannot be read.)
+----------------------------------------------------------------------------------------------------
+function GetVanaRawTime()
+   if (pVanaTime == nil or pVanaTime == 0) then
+      pVanaTime = ashita.memory.find('FFXiMain.dll', 0,
+                                     'B0015EC390518B4C24088D4424005068', 0,
+                                     0);
+   end
+   if (pVanaTime == nil or pVanaTime == 0) then return nil; end
+
+   local pointer = ashita.memory.read_uint32(pVanaTime + 0x34);
+   return ashita.memory.read_uint32(pointer + 0x0C) + 92514960;
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: GetVanaHourIndex
+-- desc: Returns a monotonically increasing index of the current Vana'diel hour, used to detect
+--       when an hour boundary has been crossed.
+----------------------------------------------------------------------------------------------------
+function GetVanaHourIndex()
+   local rawTime = GetVanaRawTime();
+   if (rawTime == nil) then return nil; end
+
+   return math.floor(rawTime / VanaHourSeconds);
+end
+
+----------------------------------------------------------------------------------------------------
+-- func: GetNextPoolRefresh
+-- desc: Returns the next fishing pool restock as { hour, remaining }, where hour is the Vana'diel
+--       hour of the restock and remaining is the real-life seconds until it happens.
+----------------------------------------------------------------------------------------------------
+function GetNextPoolRefresh(hours)
+   local rawTime = GetVanaRawTime();
+   if (rawTime == nil) then return nil; end
+
+   local dayOffset = rawTime % VanaDaySeconds;
+   local nextHour, nextRemaining;
+
+   for _, hour in ipairs(hours) do
+      local remaining = ((hour * VanaHourSeconds) - dayOffset) % VanaDaySeconds;
+
+      -- Sitting exactly on a restock means that one just fired, so look ahead to the following one.
+      if (remaining == 0) then remaining = VanaDaySeconds; end
+
+      if (nextRemaining == nil or remaining < nextRemaining) then
+         nextHour = hour;
+         nextRemaining = remaining;
+      end
+   end
+
+   if (nextHour == nil) then return nil; end
+
+   return { hour = nextHour, remaining = nextRemaining };
 end
 
 function GetWeather()

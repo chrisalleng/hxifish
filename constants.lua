@@ -7,8 +7,12 @@ SkillTypes = {[48]="Fishing",[49]="Woodworking",[50]="Smithing",[51]="Goldsmithi
 
 EquipSlotNames = T{[1] = 'Main',[2] = 'Sub',[3] = 'Range',[4] = 'Ammo',[5] = 'Head',[6] = 'Body',[7] = 'Hands',[8] = 'Legs',[9] = 'Feet',[10] = 'Neck',[11] = 'Waist',[12] = 'Ear1',[13] = 'Ear2',[14] = 'Ring1',[15] = 'Ring2',[16] = 'Back'};
 
+-- Vana'diel hours at which HorizonXI restocks its fishing pools.
+PoolRefreshHours = T{0, 4, 6, 7, 17, 18, 20};
+
 return {
    ZoneType = ZoneType,
    SkillTypes = SkillTypes,
-   EquipSlotNames = EquipSlotNames
+   EquipSlotNames = EquipSlotNames,
+   PoolRefreshHours = PoolRefreshHours
 }

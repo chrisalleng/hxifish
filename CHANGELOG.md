@@ -19,6 +19,17 @@
 
 <h1>Completed Work</h1>
 <ul>
+  <li>
+    1.7.0
+    <ul>
+      <li>
+          Added "Next Refresh" line showing the next fishing pool restock (Vana'diel 0:00, 4:00, 6:00, 7:00, 17:00, 18:00, 20:00) with a real-time countdown.
+      </li>
+      <li>
+          Added "Pool Refresh Chime" option (default off) that plays the &lt;call21&gt; sound through Ashita at each pool restock.
+      </li>
+    </ul>
+  </li>
     <li>
     1.6.1
     <ul>

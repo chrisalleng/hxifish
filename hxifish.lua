@@ -26,7 +26,7 @@
 addon.author            = 'Espe (spkywt)';
 addon.name              = 'hxifish';
 addon.desc              = 'Tracker for fishing statistics.';
-addon.version           = '1.6.0';
+addon.version           = '1.7.0';
 
 -- Ashita Libs
 require 'common'
@@ -45,6 +45,7 @@ local config;
 local defaults          = require('defaults');
 local globals           = T{
       packetSync        = 0;
+      vanaHourIndex     = nil;
 }
 
 ----------------------------------------------------------------------------------------------------
@@ -59,6 +60,27 @@ local function UpdateGph(t)
    config.Fishing.session.gph.value = math.floor(naive * c);
    
    return false;
+end
+
+
+----------------------------------------------------------------------------------------------------
+-- func: CheckPoolRefresh
+-- desc: Chimes through Ashita when a Vana'diel hour that restocks the fishing pools is crossed.
+----------------------------------------------------------------------------------------------------
+local function CheckPoolRefresh()
+   local hourIndex = GetVanaHourIndex();
+   if (hourIndex == nil) then return; end
+
+   local lastIndex = globals.vanaHourIndex;
+   globals.vanaHourIndex = hourIndex;
+
+   -- Nothing to compare against on the first tick after loading.
+   if (lastIndex == nil or lastIndex == hourIndex) then return; end
+
+   if (not config.options.refreshChime[1]) then return; end
+   if (not PoolRefreshHours:contains(hourIndex % 24)) then return; end
+
+   ashita.misc.play_sound(addon.path .. 'files/call21.wav');
 end
 
 
@@ -120,6 +142,14 @@ local function FishingTracker()
       if (ShowSkillGain and config.Fishing.session.skill > 0) then
          imgui.SameLine();
          imgui.TextColored({0.5, 1.0, 0.5, 1.0}, '+' .. config.Fishing.session.skill);
+      end
+
+      -- Next Fishing Pool Refresh
+      local refresh = GetNextPoolRefresh(PoolRefreshHours);
+      if (refresh ~= nil) then
+         imgui.Text(string.format('Next Refresh: %02d:00', refresh.hour));
+         imgui.SameLine();
+         imgui.TextColored({1.0, 1.0, 0.4, 1.0}, '(' .. format_time(refresh.remaining) .. ')');
       end
       imgui.Separator();
       
@@ -211,7 +241,7 @@ local function FishingTracker()
          imgui.PopStyleColor(2);
       elseif (config.options.show == true) then
          -- Options Panel (overrides catch history)
-         imgui.BeginChild('Options', {0, 166}, ImGuiChildFlags_Borders);
+         imgui.BeginChild('Options', {0, 200}, ImGuiChildFlags_Borders);
             -- Option >> Skill Tracking
             local choices = config.options.choices;
             imgui.Text('Track Skills:');
@@ -230,6 +260,15 @@ local function FishingTracker()
                settings.save();
             end
             
+            -- Option >> Pool Refresh Chime
+            imgui.NewLine();
+            if (imgui.Checkbox('Pool Refresh Chime', config.options.refreshChime)) then
+               settings.save();
+            end
+            imgui.SameLine();
+            imgui.TextDisabled('(?)');
+            tool_tip(imgui, 'Plays a chime when the fishing pools restock');
+
             -- Option >> Clear Session
             imgui.NewLine();
             if (config.options.clrSession[1]) then
@@ -758,9 +797,11 @@ ashita.events.register('d3d_present', 'present_cb', function ()
    if (player == nil) then
       return;
    end
-   
+
    -- Display Fishing Tracker
    local ok, err = pcall(function()
+      CheckPoolRefresh();
+
       if (config.Fishing.show) then
          FishingTracker();
       end

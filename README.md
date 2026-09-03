@@ -1,15 +1,50 @@
 # hxifish
 FFXI Tracker for fishing statistics. Window automatically opens when casting your line.<br /><br />
-Current Version: 1.6.1<br />
-Published: 2026-08-09<br />
-<a href="https://github.com/spkywt/hxifish/blob/main/CHANGELOG.md">View Changelog</a><br /><br />
+Current Version: 1.7.0<br />
+<a href="CHANGELOG.md">View Changelog</a><br /><br />
+
+This is a fork of <a href="https://github.com/spkywt/hxifish">spkywt/hxifish</a> by Espe (spkywt), adding fishing pool refresh tracking.
+
 <table>
   <tr>
     <td>/hxifish</td>
     <td>manually show the tracking window</td>
 </tr>
 </table>
-<br />
+
+## New in this fork (1.7.0)
+
+### Pool refresh timer
+
+HorizonXI restocks its fishing pools at the Vana'diel hours **0:00, 4:00, 6:00, 7:00, 17:00, 18:00 and 20:00**.
+A line under **Skill** shows which restock is next and how long you have to wait in real-life time:
+
+```
+Next Refresh: 06:00 (3m 34s)
+```
+
+The `06:00` is the Vana'diel hour the pools restock at; the countdown in parentheses is real time.
+
+### Pool refresh chime
+
+**Show Options** has a **Pool Refresh Chime** checkbox (**off by default**). When enabled, the
+`<call21>` sound effect plays at each restock. It is played through Ashita's own sound player, so
+nothing is written to the chat log.
+
+The sound lives in `files/call21.wav`. To use a different call, extract it from your own game
+files with the included decoder. The call jingles are `se0000NN.spw` in `<FFXI>/sound/win/se/se000`,
+where `NN = 16 + call number` — so `se000017.spw` is `<call1>` and `se000037.spw` is `<call21>`:
+
+```
+# swap the chime for <call5>
+python3 tools/spw2wav.py "<FFXI>/sound/win/se/se000/se000021.spw" files/call21.wav
+```
+
+`files/call21.wav` is decoded from FINAL FANTASY XI client data and remains the property of
+Square Enix. It is included here for use alongside a legitimate installation of the game.
+
+---
+
 New in 1.5 -- added notification for epic fish that should be good enough for the fishing competition<br />
 <img width="465" height="92" alt="image" src="https://github.com/user-attachments/assets/470bfaec-0a7f-4d1b-96e6-d8093113c2d0" /><br /><br />
 New in 1.4 -- skill up chance in catch message<br />
