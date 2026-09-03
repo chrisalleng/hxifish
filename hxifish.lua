@@ -26,7 +26,7 @@
 addon.author            = 'Espe (spkywt)';
 addon.name              = 'hxifish';
 addon.desc              = 'Tracker for fishing statistics.';
-addon.version           = '1.7.0';
+addon.version           = '1.7.1';
 
 -- Ashita Libs
 require 'common'
@@ -60,6 +60,58 @@ local function UpdateGph(t)
    config.Fishing.session.gph.value = math.floor(naive * c);
    
    return false;
+end
+
+
+----------------------------------------------------------------------------------------------------
+-- func: GetTrackerLayout
+-- desc: Sizes the window to the text it is about to draw, so the layout survives whatever font
+--       size the client is using. The original fixed 236px width clipped its own content once
+--       the UI was scaled up (high DPI / 4K), and long zone names or large all-time totals could
+--       overflow it even at the default size.
+--
+--       Panel heights are scaled from the font's line height against ImGui's 13px default, which
+--       keeps the panels showing the same number of rows at any scale.
+----------------------------------------------------------------------------------------------------
+local DEFAULT_FONT_HEIGHT = 13;
+local BASE_PANEL_HEIGHT   = 166;
+local BASE_OPTION_HEIGHT  = 200;
+local BASE_WIDTH          = 236;
+
+local function GetTrackerLayout(lines)
+   -- Fall back to the original fixed sizes if the text cannot be measured.
+   local layout = T{
+      width        = BASE_WIDTH,
+      panelHeight  = BASE_PANEL_HEIGHT,
+      optionHeight = BASE_OPTION_HEIGHT,
+   };
+
+   local ok = pcall(function()
+      local _, lineHeight = imgui.CalcTextSize('A');
+      local scale = (lineHeight or DEFAULT_FONT_HEIGHT) / DEFAULT_FONT_HEIGHT;
+      if (scale <= 0) then scale = 1; end
+
+      local widest = 0;
+      for _, line in ipairs(lines) do
+         local w = imgui.CalcTextSize(line);
+         if (w ~= nil and w > widest) then widest = w; end
+      end
+
+      -- Window padding either side, plus room for the child border and a scrollbar.
+      local padding = 30 * scale;
+
+      layout.width        = math.max(BASE_WIDTH * scale, widest + padding);
+      layout.panelHeight  = math.floor(BASE_PANEL_HEIGHT * scale);
+      layout.optionHeight = math.floor(BASE_OPTION_HEIGHT * scale);
+   end);
+
+   if (not ok) then
+      layout.width        = BASE_WIDTH;
+      layout.panelHeight  = BASE_PANEL_HEIGHT;
+      layout.optionHeight = BASE_OPTION_HEIGHT;
+   end
+
+   return layout;
 end
 
 
@@ -99,97 +151,146 @@ end
 -- desc: Shows fishing tracker window.
 ----------------------------------------------------------------------------------------------------
 local function FishingTracker()
+   ----------------------------------------------------------------------------
+   -- Build the text this frame will draw before opening the window, so the
+   -- window can be sized to actually fit it. The layout is fixed-column text,
+   -- so at larger font sizes (high DPI) a hard-coded width clips the content.
+   ----------------------------------------------------------------------------
+   local currentZoneID = AshitaCore:GetMemoryManager():GetParty():GetMemberZone(0)
+   local currentZoneName = AshitaCore:GetResourceManager():GetString('zones.names', currentZoneID);
+   local zoneLine = 'Zone:  ' .. currentZoneName;
+
+   local moon_table = GetMoon(moon);
+   local moonLine = 'Moon:  ' .. moon_table.MoonPhase .. ' (' .. moon_table.MoonPhasePercent .. '%)';
+
+   local player = AshitaCore:GetMemoryManager():GetPlayer();
+   if (config.Fishing.skill == nil) then
+      config.Fishing.skill = player:GetCraftSkill(0):GetSkill();
+   end
+   local FishingSkillMax = (player:GetCraftSkill(0):GetRank() + 1) * 10;
+   local DisplaySkill = config.Fishing.skill .. ' / ' .. FishingSkillMax;
+   local SkillColor = {1, 1, 1, 1};
+   local ShowSkillGain = false;
+   if (FishingSkillMax == config.Fishing.skill) then
+      if (config.Fishing.skill == 100) then
+         SkillColor = {0, 1, 0, 1};
+         DisplaySkill = DisplaySkill .. ' MAXED';
+      else
+         SkillColor = {1, 0, 0, 1};
+         DisplaySkill = DisplaySkill .. ' CAPPED';
+      end
+   elseif (FishingSkillMax - config.Fishing.skill <= 2) and (config.Fishing.skill < 98) then
+      SkillColor = {0, 1, 0, 1};
+      DisplaySkill = DisplaySkill .. ' RANK QUEST';
+   else
+      ShowSkillGain = true;
+   end
+   local skillGain = (ShowSkillGain and config.Fishing.session.skill > 0)
+                     and ('+' .. config.Fishing.session.skill) or nil;
+
+   local refresh = GetNextPoolRefresh(PoolRefreshHours);
+   local refreshLabel, refreshTime;
+   if (refresh ~= nil) then
+      refreshLabel = string.format('Next Refresh: %02d:00', refresh.hour);
+      refreshTime  = '(' .. format_time(refresh.remaining) .. ')';
+   end
+
+   local var_stats = config.Fishing.session;
+   local cfg_stats = config.Fishing.alltime;
+   local statsHeader = 'Category     Session  All-Time';
+   local statLines = T{
+      'Casts:       ' .. string.format("%-9s",var_stats.casts)     .. cfg_stats.casts,
+      'Fish:        ' .. string.format("%-9s",var_stats.fish)      .. cfg_stats.fish,
+      'Item:        ' .. string.format("%-9s",var_stats.item)      .. cfg_stats.item,
+      'Gil:         ' .. string.format("%-9s",var_stats.gil)       .. cfg_stats.gil,
+      'Monster:     ' .. string.format("%-9s",var_stats.monster)   .. cfg_stats.monster,
+      'No Catch:    ' .. string.format("%-9s",var_stats.noCatch)   .. cfg_stats.noCatch,
+      'Gave Up:     ' .. string.format("%-9s",var_stats.canceled)  .. cfg_stats.canceled,
+      'Lost:        ' .. string.format("%-9s",var_stats.lost)      .. cfg_stats.lost,
+      'Rod Break:   ' .. string.format("%-9s",var_stats.rodBreak)  .. cfg_stats.rodBreak,
+      'Line Break:  ' .. string.format("%-9s",var_stats.lineBreak) .. cfg_stats.lineBreak,
+   };
+
+   -- Gil/Hour Stats
+   local displaytime = config.Fishing.session.gph.totalTime + ((config.Fishing.session.gph.lastAction ~= 0) and (ashita.time.clock()['s'] - config.Fishing.session.gph.lastAction) or 0);
+   local timeLine = 'Time:        ' .. format_time(displaytime);
+   local gilLine  = 'Gil:         ' .. comma_value(config.Fishing.session.gph.sum);
+   local gphLine  = 'gph:         ' .. comma_value(config.Fishing.session.gph.value);
+   local lastCatchValue;
+   if (config.Fishing.session.lastCatch > 0) then
+      local rmItem = AshitaCore:GetResourceManager():GetItemById(config.Fishing.session.lastCatch);
+      local item_name = (rmItem.Name and rmItem.Name[1]) or (rmItem.Name and rmItem.Name[0]) or nil;
+      lastCatchValue = '+ ' .. GetItemPrice(item_name);
+   end
+   local pauseMsg;
+   if (config.Fishing.session.gph.lastAction == 0 and config.Fishing.session.gph.totalTime > 0) then
+      pauseMsg = 'Paused due to inactivity > ' .. tostring(config.Fishing.session.gph.timeOut / 60) .. 'm';
+   end
+
+   -- Collect every line that drives the window width. Built with appends rather
+   -- than a table constructor so an absent line cannot leave a hole in the array.
+   local measure = T{ zoneLine, moonLine, statsHeader, timeLine, gphLine };
+   measure:append('Skill: ' .. DisplaySkill .. (skillGain and (' ' .. skillGain) or ''));
+   measure:append(gilLine .. (lastCatchValue and (' ' .. lastCatchValue) or ''));
+   if (refreshLabel ~= nil) then measure:append(refreshLabel .. ' ' .. refreshTime); end
+   if (pauseMsg ~= nil) then measure:append(pauseMsg); end
+   measure:extend(statLines);
+
+   local layout = GetTrackerLayout(measure);
+
    -- Initialize the window draw.
    imgui.SetNextWindowBgAlpha(0.8);
-   imgui.SetNextWindowSize({236, 0}, ImGuiCond_Always);
+   imgui.SetNextWindowSize({layout.width, 0}, ImGuiCond_Always);
    if (imgui.Begin('Fishing Tracker', nil, config.Window_Flags)) then
       -- Current Zone
-      local currentZoneID = AshitaCore:GetMemoryManager():GetParty():GetMemberZone(0)
-      local currentZoneName = AshitaCore:GetResourceManager():GetString('zones.names', currentZoneID);
-      imgui.Text('Zone:  ' .. currentZoneName);
-      
+      imgui.Text(zoneLine);
+
       -- Moon Phase
-      local moon_table = GetMoon(moon);
-      imgui.Text('Moon:  ' .. moon_table.MoonPhase .. ' (' .. moon_table.MoonPhasePercent .. '%)');
-      
+      imgui.Text(moonLine);
+
       -- Current Fishing Skill
       imgui.Text('Skill:');
       imgui.SameLine();
-      local player = AshitaCore:GetMemoryManager():GetPlayer();
-      if (config.Fishing.skill == nil) then
-         config.Fishing.skill = player:GetCraftSkill(0):GetSkill();
-      end
-      local FishingSkillMax = (player:GetCraftSkill(0):GetRank() + 1) * 10;
-      local DisplaySkill = config.Fishing.skill .. ' / ' .. FishingSkillMax;
-      local ShowSkillGain = false;
-      if (FishingSkillMax == config.Fishing.skill) then
-         if (config.Fishing.skill == 100) then
-            imgui.PushStyleColor(ImGuiCol_Text, {0, 1, 0, 1});
-            DisplaySkill = DisplaySkill .. ' MAXED';
-         else
-            imgui.PushStyleColor(ImGuiCol_Text, {1, 0, 0, 1});
-            DisplaySkill = DisplaySkill .. ' CAPPED';
-         end
-      elseif (FishingSkillMax - config.Fishing.skill <= 2) and (config.Fishing.skill < 98) then 
-         imgui.PushStyleColor(ImGuiCol_Text, {0, 1, 0, 1});
-         DisplaySkill = DisplaySkill .. ' RANK QUEST';
-      else
-         imgui.PushStyleColor(ImGuiCol_Text, {1, 1, 1, 1});
-         ShowSkillGain = true;
-      end
+      imgui.PushStyleColor(ImGuiCol_Text, SkillColor);
       imgui.Text(DisplaySkill);
       imgui.PopStyleColor(1);
-      if (ShowSkillGain and config.Fishing.session.skill > 0) then
+      if (skillGain ~= nil) then
          imgui.SameLine();
-         imgui.TextColored({0.5, 1.0, 0.5, 1.0}, '+' .. config.Fishing.session.skill);
+         imgui.TextColored({0.5, 1.0, 0.5, 1.0}, skillGain);
       end
 
       -- Next Fishing Pool Refresh
-      local refresh = GetNextPoolRefresh(PoolRefreshHours);
-      if (refresh ~= nil) then
-         imgui.Text(string.format('Next Refresh: %02d:00', refresh.hour));
+      if (refreshLabel ~= nil) then
+         imgui.Text(refreshLabel);
          imgui.SameLine();
-         imgui.TextColored({1.0, 1.0, 0.4, 1.0}, '(' .. format_time(refresh.remaining) .. ')');
+         imgui.TextColored({1.0, 1.0, 0.4, 1.0}, refreshTime);
       end
       imgui.Separator();
-      
+
       -- Catch Stats
-      imgui.TextColored({1.0, 1.0, 0.4, 1.0},'Category     Session  All-Time');
+      imgui.TextColored({1.0, 1.0, 0.4, 1.0}, statsHeader);
       imgui.Separator();
-      local var_stats = config.Fishing.session;
-      local cfg_stats = config.Fishing.alltime;
-      imgui.Text('Casts:       ' .. string.format("%-9s",var_stats.casts) .. cfg_stats.casts);
-      imgui.Text('Fish:        ' .. string.format("%-9s",var_stats.fish) .. cfg_stats.fish);
-      imgui.Text('Item:        ' .. string.format("%-9s",var_stats.item) .. cfg_stats.item);
-      imgui.Text('Gil:         ' .. string.format("%-9s",var_stats.gil) .. cfg_stats.gil);
-      imgui.Text('Monster:     ' .. string.format("%-9s",var_stats.monster) .. cfg_stats.monster);
-      imgui.Text('No Catch:    ' .. string.format("%-9s",var_stats.noCatch) .. cfg_stats.noCatch);
-      imgui.Text('Gave Up:     ' .. string.format("%-9s",var_stats.canceled) .. cfg_stats.canceled);
-      imgui.Text('Lost:        ' .. string.format("%-9s",var_stats.lost) .. cfg_stats.lost);
-      imgui.Text('Rod Break:   ' .. string.format("%-9s",var_stats.rodBreak) .. cfg_stats.rodBreak);
-      imgui.Text('Line Break:  ' .. string.format("%-9s",var_stats.lineBreak) .. cfg_stats.lineBreak);
+      for _, line in ipairs(statLines) do
+         imgui.Text(line);
+      end
       imgui.Separator();
       
       -- Gil/Hour Stats
-      local displaytime = config.Fishing.session.gph.totalTime + ((config.Fishing.session.gph.lastAction ~= 0) and (ashita.time.clock()['s'] - config.Fishing.session.gph.lastAction) or 0);
-      imgui.Text('Time:        ' .. format_time(displaytime));
-      imgui.Text('Gil:         ' .. comma_value(config.Fishing.session.gph.sum));
-      if (config.Fishing.session.lastCatch > 0) then
-         local rmItem = AshitaCore:GetResourceManager():GetItemById(config.Fishing.session.lastCatch);
-         local item_name = (rmItem.Name and rmItem.Name[1]) or (rmItem.Name and rmItem.Name[0]) or nil;
+      imgui.Text(timeLine);
+      imgui.Text(gilLine);
+      if (lastCatchValue ~= nil) then
          imgui.SameLine();
-         imgui.TextColored({0.5, 1.0, 0.5, 1.0},'+ ' .. GetItemPrice(item_name));
+         imgui.TextColored({0.5, 1.0, 0.5, 1.0}, lastCatchValue);
       end
-      imgui.Text('gph:         ' .. comma_value(config.Fishing.session.gph.value));
-      if (config.Fishing.session.gph.lastAction == 0 and config.Fishing.session.gph.totalTime > 0) then
-         local pausemsg = 'Paused due to inactivity > ' .. tostring(config.Fishing.session.gph.timeOut / 60) .. 'm'
-         imgui.TextColored({1.0, 0.2, 0.2, 1.0}, pausemsg);
+      imgui.Text(gphLine);
+      if (pauseMsg ~= nil) then
+         imgui.TextColored({1.0, 0.2, 0.2, 1.0}, pauseMsg);
       end
       imgui.Separator();
       
       if config.editItem.show then
          -- Edit Item Panel (overrides catch history)
-         imgui.BeginChild('Edit Item', {0, 166}, ImGuiChildFlags_Borders);
+         imgui.BeginChild('Edit Item', {0, layout.panelHeight}, ImGuiChildFlags_Borders);
             imgui.Text('Name:      ' .. config.editItem.name);
             imgui.Text('Level:     ' .. fishdata[config.editItem.name].skill_level);
             imgui.Separator();
@@ -241,7 +342,7 @@ local function FishingTracker()
          imgui.PopStyleColor(2);
       elseif (config.options.show == true) then
          -- Options Panel (overrides catch history)
-         imgui.BeginChild('Options', {0, 200}, ImGuiChildFlags_Borders);
+         imgui.BeginChild('Options', {0, layout.optionHeight}, ImGuiChildFlags_Borders);
             -- Option >> Skill Tracking
             local choices = config.options.choices;
             imgui.Text('Track Skills:');
@@ -319,12 +420,14 @@ local function FishingTracker()
          end
          imgui.SameLine();
          if (imgui.Button(' Save ')) then
-            --
+            -- Each option already saves as it is changed; this just closes the panel.
+            settings.save();
+            config.options.show = false;
          end
          imgui.PopStyleColor(2);
       else
          -- Catch History
-         imgui.BeginChild('Catch History', {0, 166}, ImGuiChildFlags_Borders);
+         imgui.BeginChild('Catch History', {0, layout.panelHeight}, ImGuiChildFlags_Borders);
             imgui.TextColored({1.0, 1.0, 0.4, 1.0}, 'Catch History');
             imgui.SameLine();
             imgui.TextDisabled('(?)');

@@ -20,6 +20,17 @@
 <h1>Completed Work</h1>
 <ul>
   <li>
+    1.7.1
+    <ul>
+      <li>
+          Window now sizes itself to its contents instead of a fixed 236px, fixing text being cut off at high DPI / 4K. Panel heights scale with the font as well.
+      </li>
+      <li>
+          "Save" in the options panel now closes the panel.
+      </li>
+    </ul>
+  </li>
+  <li>
     1.7.0
     <ul>
       <li>

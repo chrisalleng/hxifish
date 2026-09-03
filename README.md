@@ -1,6 +1,6 @@
 # hxifish
 FFXI Tracker for fishing statistics. Window automatically opens when casting your line.<br /><br />
-Current Version: 1.7.0<br />
+Current Version: 1.7.1<br />
 <a href="CHANGELOG.md">View Changelog</a><br /><br />
 
 This is a fork of <a href="https://github.com/spkywt/hxifish">spkywt/hxifish</a> by Espe (spkywt), adding fishing pool refresh tracking.
